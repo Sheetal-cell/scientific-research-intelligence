@@ -16,6 +16,12 @@ from app.schemas.document import (
     PDFProcessingRequest,
     PDFProcessingResponse,
 )
+from app.agents.evidence_extraction import extract_research_evidence
+from app.schemas.evidence import (
+    EvidenceExtractionRequest,
+    EvidenceExtractionResponse,
+)
+
 app = FastAPI(
     title="Scientific Research Intelligence",
     description="A multi-agent AI research platform",
@@ -123,4 +129,24 @@ def process_research_pdfs(request: PDFProcessingRequest):
         raise HTTPException(
             status_code=502,
             detail="Research PDF processing failed. Check backend logs."
+        )
+
+
+
+@app.post(
+    "/research/extract-evidence",
+    response_model=EvidenceExtractionResponse
+)
+def extract_evidence(request: EvidenceExtractionRequest):
+
+    try:
+        return extract_research_evidence(request)
+
+    except Exception as error:
+
+        print(f"Evidence Extraction Error: {error}")
+
+        raise HTTPException(
+            status_code=502,
+            detail="Scientific evidence extraction failed. Check backend logs."
         )
