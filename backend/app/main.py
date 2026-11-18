@@ -11,7 +11,11 @@ from app.schemas.paper import (
     PaperFilteringResponse,
 )
 from app.agents.research_planner import create_research_plan
-
+from app.agents.pdf_processing import process_research_papers
+from app.schemas.document import (
+    PDFProcessingRequest,
+    PDFProcessingResponse,
+)
 app = FastAPI(
     title="Scientific Research Intelligence",
     description="A multi-agent AI research platform",
@@ -101,4 +105,22 @@ def filter_discovered_papers(request: PaperFilteringRequest):
         raise HTTPException(
             status_code=502,
             detail="Paper relevance assessment failed. Check backend logs."
+        )
+
+@app.post(
+    "/research/process-pdfs",
+    response_model=PDFProcessingResponse
+)
+def process_research_pdfs(request: PDFProcessingRequest):
+
+    try:
+        return process_research_papers(request.papers)
+
+    except Exception as error:
+
+        print(f"PDF Processing Error: {error}")
+
+        raise HTTPException(
+            status_code=502,
+            detail="Research PDF processing failed. Check backend logs."
         )
