@@ -21,7 +21,12 @@ from app.schemas.evidence import (
     EvidenceExtractionRequest,
     EvidenceExtractionResponse,
 )
+from app.agents.cross_paper_synthesis import synthesize_research
 
+from app.schemas.synthesis import (
+    SynthesisRequest,
+    CrossPaperSynthesisResponse,
+)
 app = FastAPI(
     title="Scientific Research Intelligence",
     description="A multi-agent AI research platform",
@@ -149,4 +154,28 @@ def extract_evidence(request: EvidenceExtractionRequest):
         raise HTTPException(
             status_code=502,
             detail="Scientific evidence extraction failed. Check backend logs."
+        )
+
+@app.post(
+    "/research/synthesize",
+    response_model=CrossPaperSynthesisResponse
+)
+def synthesize_research_papers(request: SynthesisRequest):
+
+    try:
+        return synthesize_research(request)
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error)
+        )
+
+    except Exception:
+        print("Cross-Paper Synthesis Error:")
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=502,
+            detail="Cross-paper synthesis failed. Check backend logs."
         )
