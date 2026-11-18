@@ -34,6 +34,13 @@ from app.schemas.report import (
     ResearchReportRequest,
     ResearchReportResponse,
 )
+
+from app.agents.research_quality import evaluate_research_report
+
+from app.schemas.quality import (
+    ReportQualityRequest,
+    ReportQualityResponse,
+)
 app = FastAPI(
     title="Scientific Research Intelligence",
     description="A multi-agent AI research platform",
@@ -212,4 +219,30 @@ def generate_final_research_report(
         raise HTTPException(
             status_code=502,
             detail="Research report generation failed. Check backend logs."
+        )
+
+@app.post(
+    "/research/evaluate-report",
+    response_model=ReportQualityResponse
+)
+def evaluate_final_research_report(
+    request: ReportQualityRequest
+):
+
+    try:
+        return evaluate_research_report(request)
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error)
+        )
+
+    except Exception:
+        print("Research Quality Evaluation Error:")
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=502,
+            detail="Research quality evaluation failed. Check backend logs."
         )
