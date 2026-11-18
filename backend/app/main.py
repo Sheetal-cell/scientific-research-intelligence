@@ -24,6 +24,16 @@ from app.schemas.evidence import (
 from app.agents.cross_paper_synthesis import synthesize_research
 from fastapi.responses import FileResponse
 
+from pathlib import Path
+from fastapi.responses import FileResponse
+
+from app.agents.research_workflow import run_research_workflow
+from app.schemas.workflow import (
+    ResearchWorkflowRequest,
+    ResearchWorkflowResponse,
+)
+from app.services.pdf_report_service import REPORT_DIR
+
 from app.schemas.export import (
     ResearchPDFExportRequest,
 )
@@ -276,3 +286,53 @@ def export_research_pdf(
             status_code=500,
             detail="Research PDF generation failed. Check backend logs."
         )
+
+@app.post(
+    "/research/run",
+    response_model=ResearchWorkflowResponse
+)
+def run_complete_research(request: ResearchWorkflowRequest):
+
+    try:
+        return run_research_workflow(request.question)
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=str(error)
+        )
+
+    except Exception:
+        print("Complete Research Workflow Error:")
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=502,
+            detail="Research workflow failed. Check backend logs."
+        )
+
+
+@app.get("/research/download/{filename}")
+def download_research_report(filename: str):
+
+    safe_filename = Path(filename).name
+
+    if safe_filename != filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid filename."
+        )
+
+    file_path = REPORT_DIR / safe_filename
+
+    if not file_path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail="Research report PDF not found."
+        )
+
+    return FileResponse(
+        path=str(file_path),
+        media_type="application/pdf",
+        filename=safe_filename
+    )

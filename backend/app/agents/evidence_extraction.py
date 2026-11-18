@@ -90,18 +90,23 @@ def is_retryable_error(error: Exception) -> bool:
     )
 
 
-def generate_with_retry(prompt: str):
+
+def generate_with_retry(
+    prompt: str,
+    paper_id: str = "unknown",
+    chunk_number: int = 0,
+    total_chunks: int = 0,
+):
     """
-    Retry temporary Gemini failures using exponential backoff.
+    Retry temporary Gemini failures with exponential backoff.
+    Log the paper and chunk responsible for each request.
     """
 
     max_attempts = 4
 
     for attempt in range(max_attempts):
-
         try:
-
-            response = client.models.generate_content(
+            return client.models.generate_content(
                 model=MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
@@ -111,28 +116,33 @@ def generate_with_retry(prompt: str):
                 ),
             )
 
-            return response
-
         except Exception as error:
-
             if (
                 not is_retryable_error(error)
                 or attempt == max_attempts - 1
             ):
+                print(
+                    f"[Evidence Extraction] "
+                    f"FAILED | Paper: {paper_id} | "
+                    f"Chunk: {chunk_number}/{total_chunks} | "
+                    f"Error: {error}"
+                )
                 raise
 
             wait_seconds = 2 ** (attempt + 1)
 
             print(
-                f"Gemini temporarily unavailable. "
-                f"Retry {attempt + 1}/{max_attempts - 1} "
-                f"in {wait_seconds} seconds."
-            )
+    f"[Evidence Extraction] "
+    f"Gemini error: {error} | "
+    f"Paper: {paper_id} | "
+    f"Chunk: {chunk_number}/{total_chunks} | "
+    f"Retry: {attempt + 1}/{max_attempts - 1} | "
+    f"Waiting: {wait_seconds}s"
+)
 
             time.sleep(wait_seconds)
 
     raise RuntimeError("Gemini request failed after retries.")
-
 def read_extracted_document(paper_id: str) -> str:
 
     filename = get_safe_filename(paper_id)
@@ -155,7 +165,9 @@ def read_extracted_document(paper_id: str) -> str:
 
 def extract_chunk_evidence(
     paper: Paper,
-    chunk: list[dict]
+    chunk: list[dict],
+    chunk_number: int,
+    total_chunks: int,
 ) -> list[EvidenceItem]:
 
     page_numbers = [
@@ -187,7 +199,12 @@ def extract_chunk_evidence(
     Return only evidence from this text.
     """
 
-    response = generate_with_retry(prompt)
+    response = generate_with_retry(
+    prompt=prompt,
+    paper_id=paper.paper_id,
+    chunk_number=chunk_number,
+    total_chunks=total_chunks,
+)
 
     if not response.text:
         raise ValueError("Gemini returned an empty evidence response.")
@@ -246,9 +263,11 @@ def analyze_paper(paper: Paper) -> PaperEvidenceReport:
                 time.sleep(2)
 
             evidence_items = extract_chunk_evidence(
-                paper=paper,
-                chunk=chunk
-            )
+    paper=paper,
+    chunk=chunk,
+    chunk_number=chunk_index,
+    total_chunks=len(chunks),
+)
 
             all_evidence.extend(evidence_items)
             chunks_processed += 1

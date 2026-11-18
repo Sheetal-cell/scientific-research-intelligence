@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-
+import time
 from app.schemas.paper import (
     Paper,
     PaperAssessment,
@@ -65,6 +65,60 @@ Important rules:
 - Return one assessment for every input paper.
 """
 
+def is_retryable_error(error: Exception) -> bool:
+    error_text = str(error).upper()
+
+    retryable_codes = [
+        "429",
+        "500",
+        "502",
+        "503",
+        "504",
+        "RESOURCE_EXHAUSTED",
+        "UNAVAILABLE",
+        "INTERNAL",
+    ]
+
+    return any(
+        code in error_text
+        for code in retryable_codes
+    )
+
+def generate_assessment_with_retry(prompt: str):
+    max_attempts = 4
+
+    for attempt in range(max_attempts):
+        try:
+            return client.models.generate_content(
+                model=MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=PaperAssessmentBatch,
+                    temperature=0.1,
+                ),
+            )
+
+        except Exception as error:
+            if (
+                not is_retryable_error(error)
+                or attempt == max_attempts - 1
+            ):
+                raise
+
+            wait_seconds = 2 ** (attempt + 1)
+
+            print(
+    f"[Paper Filtering] Gemini error: {error} | "
+    f"Retry {attempt + 1}/{max_attempts - 1} | "
+    f"Waiting {wait_seconds}s"
+)
+
+            time.sleep(wait_seconds)
+
+    raise RuntimeError(
+        "Paper assessment failed after retries."
+    )
 def assess_task_papers(task, papers: list[Paper]) -> list[PaperAssessment]:
 
     if not papers:
@@ -99,15 +153,7 @@ def assess_task_papers(task, papers: list[Paper]) -> list[PaperAssessment]:
     Return exactly one assessment for each supplied paper_id.
     """
 
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=PaperAssessmentBatch,
-            temperature=0.1,
-        ),
-    )
+    response = generate_assessment_with_retry(prompt)
 
     if not response.text:
         raise ValueError("The filtering agent returned an empty response")
