@@ -18,17 +18,17 @@ from app.schemas.paper import (
 
 load_dotenv()
 
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
- 
- def get_client():
-     """Create the Gemini client only when an AI operation is requested."""
-     api_key = os.getenv("GEMINI_API_KEY")
-     if not api_key:
-         raise RuntimeError(
-             "GEMINI_API_KEY is not configured. Add it to backend/.env "
-             "or your hosting provider's environment variables."
-         )
-     return genai.Client(api_key=api_key)
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+
+def get_client():
+    """Create the Gemini client only when an AI operation is requested."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is not configured. Add it to backend/.env "
+            "or your hosting provider's environment variables."
+        )
+    return genai.Client(api_key=api_key)
 
 RELEVANCE_THRESHOLD = 65
 
