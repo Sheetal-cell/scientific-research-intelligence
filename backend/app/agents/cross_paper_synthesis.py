@@ -18,15 +18,22 @@ load_dotenv()
 
 MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
+_client = None
+
 def get_client():
-    """Create the Gemini client only when an AI operation is requested."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY is not configured. Add it to backend/.env "
-            "or your hosting provider's environment variables."
-        )
-    return genai.Client(api_key=api_key)
+    """Reuse one Gemini client instead of creating a new client per request."""
+    global _client
+
+    if _client is None:
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "GEMINI_API_KEY is not configured. Add it to backend/.env "
+                "or your hosting provider's environment variables."
+            )
+        _client = genai.Client(api_key=api_key)
+
+    return _client
 
 
 SYSTEM_INSTRUCTION = """
