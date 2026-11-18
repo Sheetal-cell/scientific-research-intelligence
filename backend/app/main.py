@@ -22,7 +22,15 @@ from app.schemas.evidence import (
     EvidenceExtractionResponse,
 )
 from app.agents.cross_paper_synthesis import synthesize_research
+from fastapi.responses import FileResponse
 
+from app.schemas.export import (
+    ResearchPDFExportRequest,
+)
+
+from app.services.pdf_report_service import (
+    generate_research_pdf,
+)
 from app.schemas.synthesis import (
     SynthesisRequest,
     CrossPaperSynthesisResponse,
@@ -245,4 +253,26 @@ def evaluate_final_research_report(
         raise HTTPException(
             status_code=502,
             detail="Research quality evaluation failed. Check backend logs."
+        )
+
+@app.post("/research/export-pdf")
+def export_research_pdf(
+    request: ResearchPDFExportRequest
+):
+    try:
+        result = generate_research_pdf(request)
+
+        return FileResponse(
+            path=result["file_path"],
+            media_type="application/pdf",
+            filename=result["filename"],
+        )
+
+    except Exception:
+        print("PDF Export Error:")
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Research PDF generation failed. Check backend logs."
         )

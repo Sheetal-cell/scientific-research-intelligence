@@ -5,3 +5,4 @@ pydantic
 google-genai
 httpx==0.28.1
 PyMuPDF
+reportlab

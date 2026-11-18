@@ -9,3 +9,4 @@ dist/
 backend/venv/
 backend/.env
 backend/data/papers/
+backend/data/reports/
