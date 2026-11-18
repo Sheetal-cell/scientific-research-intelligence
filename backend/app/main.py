@@ -27,6 +27,13 @@ from app.schemas.synthesis import (
     SynthesisRequest,
     CrossPaperSynthesisResponse,
 )
+
+from app.agents.report_generation import generate_research_report
+
+from app.schemas.report import (
+    ResearchReportRequest,
+    ResearchReportResponse,
+)
 app = FastAPI(
     title="Scientific Research Intelligence",
     description="A multi-agent AI research platform",
@@ -178,4 +185,31 @@ def synthesize_research_papers(request: SynthesisRequest):
         raise HTTPException(
             status_code=502,
             detail="Cross-paper synthesis failed. Check backend logs."
+        )
+
+
+@app.post(
+    "/research/generate-report",
+    response_model=ResearchReportResponse
+)
+def generate_final_research_report(
+    request: ResearchReportRequest
+):
+
+    try:
+        return generate_research_report(request)
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error)
+        )
+
+    except Exception:
+        print("Research Report Generation Error:")
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=502,
+            detail="Research report generation failed. Check backend logs."
         )
