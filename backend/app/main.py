@@ -1,6 +1,7 @@
 
 import traceback
-
+from app.agents.paper_discovery import discover_papers
+from app.schemas.research import ResearchPlan
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -52,7 +53,33 @@ def generate_plan(request: ResearchRequest):
 
 
 
+@app.post("/research/discover")
+def discover_research_papers(plan: ResearchPlan):
 
+    try:
+        results = discover_papers(plan.tasks)
+
+        total_papers = sum(
+            result.total_found for result in results
+        )
+
+        return {
+            "status": "success",
+            "agent": "Paper Discovery Agent",
+            "total_papers_found": total_papers,
+            "results": [
+                result.model_dump()
+                for result in results
+            ]
+        }
+
+    except Exception as error:
+        print(f"Paper Discovery Error: {error}")
+
+        raise HTTPException(
+            status_code=502,
+            detail="Paper discovery failed. Check the backend logs."
+        )
 
 
 
