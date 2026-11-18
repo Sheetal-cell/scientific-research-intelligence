@@ -18,13 +18,17 @@ from app.schemas.paper import (
 
 load_dotenv()
 
-API_KEY = os.getenv("GEMINI_API_KEY")
-MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
-
-if not API_KEY:
-    raise RuntimeError("GEMINI_API_KEY is missing from .env")
-
-client = genai.Client(api_key=API_KEY)
+MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+ 
+ def get_client():
+     """Create the Gemini client only when an AI operation is requested."""
+     api_key = os.getenv("GEMINI_API_KEY")
+     if not api_key:
+         raise RuntimeError(
+             "GEMINI_API_KEY is not configured. Add it to backend/.env "
+             "or your hosting provider's environment variables."
+         )
+     return genai.Client(api_key=api_key)
 
 RELEVANCE_THRESHOLD = 65
 
@@ -89,7 +93,7 @@ def generate_assessment_with_retry(prompt: str):
 
     for attempt in range(max_attempts):
         try:
-            return client.models.generate_content(
+            return get_client().models.generate_content(
                 model=MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
