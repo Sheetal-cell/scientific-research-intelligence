@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   Activity, ArrowDownToLine, ArrowRight, BookOpen, BrainCircuit, Check,
-  ChevronDown, CircleHelp, Clock3, Command, FileText, FlaskConical,
+  ChevronDown, CircleHelp, Command, FileText, FlaskConical,
   LayoutDashboard, Library, LoaderCircle, Menu, Microscope, Network,
   Search, Settings2, ShieldCheck, Sparkles, X, AlertCircle, ExternalLink,
 } from "lucide-react";
@@ -13,11 +14,11 @@ type Paper = { paper_id?: string; title?: string; authors?: string[]; publicatio
 type Workflow = {
   status: string; research_title: string; stages: Stage[];
   research_plan?: { research_question?: string; research_scope?: string; tasks?: { title: string; description: string; search_keywords?: string[] }[] };
-  filtering?: { total_papers_evaluated?: number; total_relevant?: number; results?: { papers?: { paper: Paper; relevant: boolean; relevance_score?: number; reason?: string }[] }[] };
+  filtering?: { total_papers_evaluated?: number; total_relevant_papers?: number; results?: { papers?: { paper: Paper; relevant: boolean; relevance_score?: number; reason?: string }[] }[] };
   pdf_processing?: { successful_downloads?: number; successful_extractions?: number; results?: { paper_id: string; extraction_status: string }[] };
-  evidence_extraction?: { successfully_analyzed?: number; partially_analyzed?: number; failed?: number; results?: { paper?: Paper; paper_id?: string; extraction_status?: string; evidence?: { claim?: string; evidence?: string; page_number?: number; evidence_type?: string }[] }[] };
-  synthesis?: { total_insights?: number; total_papers_used?: number; total_evidence_items?: number; insights?: { title?: string; description?: string; supporting_papers?: string[] }[] };
-  report?: { executive_summary?: string; sections?: { title?: string; content?: string }[]; citations?: { citation_id?: string; paper_title?: string; doi?: string; url?: string }[]; conclusion?: string; warnings?: string[]; total_papers_used?: number; total_citations?: number };
+  evidence_extraction?: { successfully_analyzed?: number; partially_analyzed?: number; failed?: number; results?: { title?: string; paper_id?: string; extraction_status?: string; evidence?: { finding?: string; supporting_excerpt?: string; page_number?: number; category?: string }[] }[] };
+  synthesis?: { total_insights?: number; total_papers_used?: number; total_evidence_items?: number; insights?: { category?: string; claim?: string; comparability_note?: string; sources?: { paper_title?: string; page_number?: number }[] }[] };
+  report?: { executive_summary?: string; sections?: { title?: string; content?: string }[]; overall_conclusion?: string; warnings?: string[]; total_papers_used?: number; total_citations?: number };
   quality_evaluation?: { overall_score?: number; citation_integrity_score?: number; total_citations_checked?: number; verified_citations?: number; invalid_citations?: number; warnings?: string[] };
   pdf_filename?: string;
 };
@@ -29,7 +30,7 @@ const navItems = [
   { label: "Research analytics", icon: Activity },
 ];
 
-function Metric({ label, value, note, icon: Icon }: { label: string; value: string | number; note: string; icon: typeof BookOpen }) {
+function Metric({ label, value, note, icon: Icon }: { label: string; value: string | number; note: string; icon: LucideIcon }) {
   return <div className="metric-card"><div className="metric-top"><span>{label}</span><span className="metric-icon"><Icon size={17}/></span></div><strong>{value}</strong><small>{note}</small></div>;
 }
 
@@ -42,7 +43,6 @@ function App() {
   const [apiHealthy, setApiHealthy] = useState<boolean | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [expanded, setExpanded] = useState<number | null>(0);
 
   useEffect(() => {
     let active = true;
@@ -53,7 +53,7 @@ function App() {
   const papers = useMemo(() => {
     const fromFilter = workflow?.filtering?.results?.flatMap((group) => group.papers || []).filter((item) => item.relevant).map((item) => item.paper) || [];
     if (fromFilter.length) return fromFilter;
-    return workflow?.evidence_extraction?.results?.map((item) => item.paper).filter((paper): paper is Paper => Boolean(paper)) || [];
+    return [];
   }, [workflow]);
 
   const visiblePapers = papers.filter((paper) => `${paper.title || ""} ${paper.authors?.join(" ") || ""}`.toLowerCase().includes(query.toLowerCase()));
@@ -77,7 +77,6 @@ function App() {
       const data = await response.json();
       if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "The research workflow could not be completed. Check the API logs and try again.");
       setWorkflow(data as Workflow);
-      setExpanded(0);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error. Please try again.");
     } finally {
@@ -109,7 +108,7 @@ function App() {
 
           <section className="metrics-grid">
             <Metric label="Papers discovered" value={workflow?.filtering?.total_papers_evaluated ?? "—"} note="Evaluated in latest run" icon={BookOpen}/>
-            <Metric label="Relevant papers" value={workflow?.filtering?.total_relevant ?? papers.length || "—"} note="Selected for evidence review" icon={Library}/>
+            <Metric label="Relevant papers" value={workflow?.filtering?.total_relevant_papers ?? (papers.length || "—")} note="Selected for evidence review" icon={Library}/>
             <Metric label="Research insights" value={workflow?.synthesis?.total_insights ?? "—"} note="Cross-paper synthesis" icon={Network}/>
             <Metric label="Citation integrity" value={workflow?.quality_evaluation?.citation_integrity_score != null ? `${workflow.quality_evaluation.citation_integrity_score}%` : "—"} note="Verified citation score" icon={ShieldCheck}/>
           </section>
@@ -121,7 +120,7 @@ function App() {
 
           {workflow && <section className="results-section"><div className="results-header"><div><div className="section-kicker">LATEST INVESTIGATION</div><h2>{workflow.research_title || "Research results"}</h2><p>{workflow.status === "success" ? "Your research report is ready." : "The workflow completed with some limitations. Review the stage details below."}</p></div><button className="download-button" onClick={downloadReport} disabled={!workflow.pdf_filename}><ArrowDownToLine size={16}/> Download report</button></div>
             <div className="result-tabs"><span className="tab-active"><FileText size={15}/> Report</span><span><Library size={15}/> Papers ({papers.length})</span><span><Activity size={15}/> Quality review</span></div>
-            <div className="result-layout"><div className="panel report-panel"><div className="report-label"><FileText size={16}/> EXECUTIVE SUMMARY</div><p className="summary-text">{workflow.report?.executive_summary || "The report summary was not returned. Review the workflow status and backend logs."}</p>{workflow.report?.sections?.map((section, i) => <div className="report-section" key={i}><h3>{section.title || `Section ${i + 1}`}</h3><p>{section.content}</p></div>)}{workflow.report?.conclusion && <div className="report-section"><h3>Conclusion</h3><p>{workflow.report.conclusion}</p></div>}</div>
+            <div className="result-layout"><div className="panel report-panel"><div className="report-label"><FileText size={16}/> EXECUTIVE SUMMARY</div><p className="summary-text">{workflow.report?.executive_summary || "The report summary was not returned. Review the workflow status and backend logs."}</p>{workflow.report?.sections?.map((section, i) => <div className="report-section" key={i}><h3>{section.title || `Section ${i + 1}`}</h3><p>{section.content}</p></div>)}{workflow.report?.overall_conclusion && <div className="report-section"><h3>Conclusion</h3><p>{workflow.report.conclusion}</p></div>}</div>
               <div className="panel quality-panel"><div className="panel-heading"><div><div className="section-kicker">TRUST & TRACEABILITY</div><h3>Quality review</h3></div><ShieldCheck size={20} className="green-icon"/></div><div className="score-ring" style={{ "--score": `${workflow.quality_evaluation?.overall_score || 0}%` } as React.CSSProperties}><div><b>{workflow.quality_evaluation?.overall_score ?? "—"}</b><small>OVERALL</small></div></div><div className="quality-stats"><div><span>Citation integrity</span><b>{workflow.quality_evaluation?.citation_integrity_score ?? "—"}{workflow.quality_evaluation?.citation_integrity_score != null ? "%" : ""}</b></div><div><span>Verified citations</span><b>{workflow.quality_evaluation?.verified_citations ?? "—"}</b></div><div><span>Invalid citations</span><b>{workflow.quality_evaluation?.invalid_citations ?? "—"}</b></div></div>{(workflow.quality_evaluation?.warnings || workflow.report?.warnings || []).map((warning, i) => <div className="warning" key={i}><AlertCircle size={14}/>{warning}</div>)}</div></div>
           </section>}
 
