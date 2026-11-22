@@ -8,6 +8,7 @@ import unicodedata
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from app.services.gemini_service import generate_with_fallback
 from pydantic import BaseModel
 from app.schemas.quality import (
     ReportQualityRequest,
@@ -294,8 +295,9 @@ def is_retryable_error(error: Exception) -> bool:
 def evaluate_with_gemini(prompt: str):
     for attempt in range(5):
         try:
-            return get_client().models.generate_content(
-                model=MODEL,
+            return generate_with_fallback(
+                client=get_client(),
+                primary_model=MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
