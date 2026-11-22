@@ -46,9 +46,10 @@ Rules:
 7. Return only information that follows the required schema.
 """
 import time
+import random
 
 def generate_plan_with_retry(prompt: str):
-    max_attempts = 4
+    max_attempts = 5
 
     for attempt in range(max_attempts):
         try:
@@ -78,7 +79,8 @@ def generate_plan_with_retry(prompt: str):
             if not retryable or attempt == max_attempts - 1:
                 raise
 
-            wait_seconds = 2 ** (attempt + 1)
+            base_wait = min(40, 5 * (2 ** attempt))
+            wait_seconds = base_wait + random.uniform(0, min(5, base_wait * 0.2))
 
             print(
                 f"Research Planner temporarily unavailable. "
