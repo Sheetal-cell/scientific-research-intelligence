@@ -63,6 +63,10 @@ export default function ResearchModules({ question, setQuestion, workflow, onWor
     if (workflow.synthesis) restored.synthesis = workflow.synthesis;
     if (workflow.report) restored.report = workflow.report;
     if (workflow.quality_evaluation) restored.quality = workflow.quality_evaluation;
+    const relevant = (workflow.filtering?.results || []).flatMap((group: any) => group.papers || []).filter((item: any) => item.relevant && item.paper).map((item: any) => item.paper);
+    const extractedIds = new Set((workflow.pdf_processing?.results || []).filter((item: any) => item.extraction_status === "success").map((item: any) => item.paper_id));
+    if (workflow.pdf_processing) restored.extractedPapers = relevant.filter((paper: any) => extractedIds.has(paper.paper_id));
+    if (workflow.evidence_extraction) restored.usableEvidence = (workflow.evidence_extraction.results || []).filter((item: any) => ["success", "partial"].includes(item.extraction_status) && item.evidence?.length);
     setOutputs((current) => ({ ...current, ...restored }));
     if (Array.isArray(workflow.stages)) {
       const next: Record<string, { status: string; message: string }> = {};
