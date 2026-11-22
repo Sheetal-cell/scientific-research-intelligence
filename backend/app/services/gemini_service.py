@@ -92,9 +92,38 @@ def _generate_with_groq(contents, config):
                 # for rate limiting. Let generate_with_fallback switch to Gemini.
                 raise
 
+            # A schema parse failure means Groq could not produce valid
+            # structured output. Retrying the same prompt in JSON mode often
+            # returns unstructured reasoning instead of the requested object.
+            # Route this request to Gemini rather than accepting bad output.
+            if (
+                "output_parse_failed" in error_text
+                or "parsing failed" in error_text
+                or "failed_generation" in error_text
+            ):
+                raise RuntimeError(
+                    "Groq could not produce valid structured JSON; "
+                    "switching to Gemini."
+                ) from schema_error
+
+            # Only retry JSON-object mode for genuine schema/feature
+            # compatibility errors, not arbitrary provider failures.
+            unsupported_schema = any(
+                marker in error_text
+                for marker in (
+                    "json_schema",
+                    "response_format",
+                    "not supported",
+                    "unsupported",
+                    "unknown parameter",
+                    "invalid parameter",
+                )
+            )
+            if not unsupported_schema:
+                raise
+
             print(
-                "[Groq] Structured schema is unsupported for this request; "
-                f"retrying in JSON mode: {schema_error}"
+                "[Groq] Schema feature unsupported; retrying once in JSON mode."
             )
             response = client.chat.completions.create(**request)
     else:
