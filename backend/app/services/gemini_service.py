@@ -61,8 +61,20 @@ def _generate_with_groq(contents, config):
                 }
             )
         except Exception as schema_error:
+            error_text = str(schema_error).lower()
+            status_code = getattr(schema_error, "status_code", None)
+            is_rate_limit = (
+                status_code == 429
+                or "rate_limit_exceeded" in error_text
+                or "tokens per minute" in error_text
+            )
+            if is_rate_limit:
+                # Do not immediately repeat a request that Groq has rejected
+                # for rate limiting. Let generate_with_fallback switch to Gemini.
+                raise
+
             print(
-                "[Groq] Structured schema request was rejected; "
+                "[Groq] Structured schema is unsupported for this request; "
                 f"retrying in JSON mode: {schema_error}"
             )
             response = client.chat.completions.create(**request)
