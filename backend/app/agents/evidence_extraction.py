@@ -2,6 +2,7 @@
 import os
 import json
 import time
+import random
 
 from pathlib import Path
 
@@ -113,7 +114,7 @@ def generate_with_retry(
     Log the paper and chunk responsible for each request.
     """
 
-    max_attempts = 4
+    max_attempts = 5
 
     for attempt in range(max_attempts):
         try:
@@ -140,7 +141,8 @@ def generate_with_retry(
                 )
                 raise
 
-            wait_seconds = 2 ** (attempt + 1)
+            base_wait = min(40, 5 * (2 ** attempt))
+            wait_seconds = base_wait + random.uniform(0, min(5, base_wait * 0.2))
 
             print(
     f"[Evidence Extraction] "
@@ -148,7 +150,7 @@ def generate_with_retry(
     f"Paper: {paper_id} | "
     f"Chunk: {chunk_number}/{total_chunks} | "
     f"Retry: {attempt + 1}/{max_attempts - 1} | "
-    f"Waiting: {wait_seconds}s"
+    f"Waiting: {wait_seconds:.1f}s"
 )
 
             time.sleep(wait_seconds)
@@ -271,7 +273,7 @@ def analyze_paper(paper: Paper) -> PaperEvidenceReport:
     for chunk_index, chunk in enumerate(chunks, start=1):
         try:
             if chunk_index > 1:
-                time.sleep(2)
+                time.sleep(3)
 
             evidence_items = extract_chunk_evidence(
     paper=paper,
