@@ -88,7 +88,11 @@ def generate_with_fallback(client, primary_model, contents, config):
         )
     except Exception as primary_error:
         message = str(primary_error).upper()
-        if "503" not in message and "UNAVAILABLE" not in message:
+        transient_markers = (
+            "429", "500", "502", "503", "504",
+            "RESOURCE_EXHAUSTED", "UNAVAILABLE", "INTERNAL",
+        )
+        if not any(marker in message for marker in transient_markers):
             raise
 
     fallback_model = os.getenv(
