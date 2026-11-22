@@ -16,7 +16,7 @@ from app.schemas.synthesis import (
 
 load_dotenv()
 
-MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 _client = None
 
