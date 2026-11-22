@@ -46,7 +46,7 @@ const STAGE_NAMES: Record<string, string> = {
   quality: "Citation and Quality Evaluation",
 };
 
-export default function ResearchModules({ question, setQuestion, workflow, onWorkflowUpdate, onRunAll, runAllLoading }: Props) {
+export default function ResearchModules({ question, setQuestion, workflow, onWorkflowUpdate, onRunAll, runAllLoading, onReset }: Props) {
   const [outputs, setOutputs] = useState<Record<string, any>>({});
   const [statuses, setStatuses] = useState<Record<string, { status: string; message: string }>>({});
   const [running, setRunning] = useState("");
@@ -226,7 +226,7 @@ export default function ResearchModules({ question, setQuestion, workflow, onWor
         </div>
         <p className="panel-description">Run only the research task you need. Results from completed stages stay available in this workspace, so you can rerun a stage without restarting everything.</p>
         <label htmlFor="research-question">YOUR RESEARCH QUESTION</label>
-        <textarea id="research-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="e.g. How do Vision Transformers compare with convolutional neural networks for medical image classification?" maxLength={500} minLength={15}/>
+        <textarea id="research-question" value={question} onChange={(event) => { setQuestion(event.target.value); setOutputs({}); setStatuses({}); setError(""); onReset(); }} placeholder="e.g. How do Vision Transformers compare with convolutional neural networks for medical image classification?" maxLength={500} minLength={15}/>
         <div className="input-meta"><span>Be specific about the domain, method, or outcome.</span><span>{question.length}/500</span></div>
         {error && <div className="error-message"><AlertCircle size={16}/>{error}</div>}
         <div className="module-actions">
