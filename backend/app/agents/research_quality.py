@@ -308,7 +308,13 @@ def evaluate_with_gemini(prompt: str):
             if not is_retryable_error(error) or attempt == 4:
                 raise
 
-            time.sleep(2 ** (attempt + 1))
+            base_wait = min(40, 5 * (2 ** attempt))
+            wait_seconds = base_wait + random.uniform(0, min(5, base_wait * 0.2))
+            print(
+                f"[Research Quality] Gemini error: {error} | "
+                f"Retry {attempt + 1}/4 | Waiting {wait_seconds:.1f}s"
+            )
+            time.sleep(wait_seconds)
 
     raise RuntimeError("Quality evaluation failed.")
 
