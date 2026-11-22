@@ -92,7 +92,19 @@ export default function ResearchModules({ question, setQuestion, workflow, onWor
 
   function updateStage(key: string, status: string, message: string, data?: Record<string, any>) {
     setStatuses((current) => ({ ...current, [key]: { status, message } }));
-    const oldStages = Array.isArray(workflow?.stages) ? workflow.stages.filter((stage: any) => stage.name !== STAGE_NAMES[key]) : [];
+    const downstream: Record<string, string[]> = {
+      plan: ["discover", "filter", "pdf", "evidence", "synthesis", "report", "quality"],
+      discover: ["filter", "pdf", "evidence", "synthesis", "report", "quality"],
+      filter: ["pdf", "evidence", "synthesis", "report", "quality"],
+      pdf: ["evidence", "synthesis", "report", "quality"],
+      evidence: ["synthesis", "report", "quality"],
+      synthesis: ["report", "quality"],
+      report: ["quality"],
+    };
+    const invalidatedNames = (downstream[key] || []).map((name) => STAGE_NAMES[name]);
+    const oldStages = Array.isArray(workflow?.stages)
+      ? workflow.stages.filter((stage: any) => stage.name !== STAGE_NAMES[key] && !invalidatedNames.includes(stage.name))
+      : [];
     onWorkflowUpdate({
       ...data,
       stages: [...oldStages, { name: STAGE_NAMES[key], status, message, metrics: {} }],
