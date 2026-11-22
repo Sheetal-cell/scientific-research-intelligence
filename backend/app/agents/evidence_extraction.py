@@ -86,6 +86,7 @@ def is_permanent_daily_quota_error(error: Exception) -> bool:
     error_text = str(error).upper()
     permanent_quota_markers = (
         "REQUESTS PER DAY",
+        "TOKENS PER DAY",
         "PER DAY PER PROJECT",
         "GENERATEREQUESTSPERDAY",
         "DAILY QUOTA",
