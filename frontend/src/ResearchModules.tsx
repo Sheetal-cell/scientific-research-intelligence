@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowRight, Check, Circle, Download, FileSearch, FileText, FlaskConical,
+  ArrowRight, Check, Download, FileSearch, FileText,
   LoaderCircle, Play, RefreshCw, ShieldCheck, Sparkles, AlertCircle
 } from "lucide-react";
 
@@ -13,6 +13,7 @@ type Props = {
   onWorkflowUpdate: (updates: Record<string, any>) => void;
   onRunAll: () => void;
   runAllLoading: boolean;
+  onReset: () => void;
 };
 
 type Module = {
