@@ -12,14 +12,14 @@ render.yaml    Render backend deployment blueprint
 
 ## Features
 
-- Research planning with Gemini structured output
+- Research planning with structured LLM output
 - Literature discovery through OpenAlex and arXiv
 - LLM-assisted relevance assessment
 - PDF collection and text extraction
 - Chunk-based scientific evidence extraction
 - Cross-paper synthesis and report generation
 - Deterministic citation checks and report-quality evaluation
-- Gemini primary + Gemini secondary + optional Groq emergency model fallback
+- Groq primary + Gemini primary fallback + Gemini secondary fallback
 - Responsive React dashboard and downloadable PDF report
 
 ## Run locally
@@ -37,7 +37,7 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Add your Gemini key and (recommended) Groq key to `backend/.env`. Never commit this file.
+Add your Groq key and Gemini key to `backend/.env`. Never commit this file.
 
 Start the API from the backend directory:
 
@@ -68,11 +68,11 @@ Backend (`backend/.env`):
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | Yes | Primary Google Gemini API key |
-| `GEMINI_MODEL` | No | Defaults to `gemini-3.5-flash-lite` |
-| `GEMINI_FALLBACK_MODEL` | No | Secondary Gemini model; defaults to `gemini-3.1-flash-lite` |
-| `GROQ_API_KEY` | Recommended | Independent fallback when both Gemini models fail; free-tier limits apply |
+| `GROQ_API_KEY` | Yes (recommended) | Primary Groq API key |
 | `GROQ_MODEL` | No | Defaults to `openai/gpt-oss-20b` |
+| `GEMINI_API_KEY` | Required for fallback | Google Gemini API key |
+| `GEMINI_MODEL` | No | First Gemini fallback; defaults to `gemini-3.5-flash-lite` |
+| `GEMINI_FALLBACK_MODEL` | No | Second Gemini fallback; defaults to `gemini-3.1-flash-lite` |
 | `OPENALEX_API_KEY` | No | OpenAlex API key for higher API limits |
 | `FRONTEND_ORIGINS` | No | Comma-separated allowed frontend origins |
 
@@ -87,7 +87,7 @@ Never put API keys in frontend variables or frontend source code.
 ## Free-tier deployment outline
 
 1. Deploy the backend on Render using `render.yaml`.
-2. Set `GEMINI_API_KEY` and `GROQ_API_KEY` as secret environment variables in Render. Do not upgrade Groq to a paid tier unless you deliberately choose to.
+2. Set `GROQ_API_KEY` and `GEMINI_API_KEY` as secret environment variables in Render. Do not upgrade Groq to a paid tier unless you deliberately choose to.
 3. Deploy `frontend/` on Vercel with framework preset Vite and set `VITE_API_URL` to the Render API URL.
 4. Set `FRONTEND_ORIGINS` on Render to your Vercel production origin and redeploy.
 
@@ -95,11 +95,11 @@ Provider free-tier limits and model availability can change. A successful deploy
 
 ## Reliability notes
 
-- Gemini is attempted first, followed by the configured secondary Gemini model.
-- If both Gemini models fail, the application uses Groq when `GROQ_API_KEY` is configured. Groq output is parsed and validated by the same Pydantic schemas used by the agents.
-- Groq structured output is best-effort; schema validation remains mandatory in the application.
+- Groq is attempted first for every LLM generation request.
+- If Groq fails or is not configured, the application tries the configured primary Gemini model, followed by the secondary Gemini model.
+- Groq structured output is best-effort; outputs must still pass the same Pydantic validation used by the agents.
 - OpenAlex requests use bounded retries and respect a numeric `Retry-After` header where supplied.
-- PDF availability depends on publisher access and source licensing. Paywalled sources may reject downloads; the app must report those failures rather than imply the paper was analysed.
+- PDF availability depends on publisher access and source licensing. Paywalled or restricted sources may reject downloads; a PDF download failure does not mean the paper itself is unavailable, and the app must not imply that inaccessible full text was analysed.
 
 ## Important
 
