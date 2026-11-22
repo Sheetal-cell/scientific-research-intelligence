@@ -123,6 +123,7 @@ function App() {
             onWorkflowUpdate={(updates) => setWorkflow((current) => ({ ...(current || {}), ...updates } as Workflow))}
             onRunAll={() => runResearch()}
             runAllLoading={loading}
+            onReset={() => setWorkflow(null)}
           />
 
           {workflow && <section className="results-section"><div className="results-header"><div><div className="section-kicker">LATEST INVESTIGATION</div><h2>{workflow.research_title || "Research results"}</h2><p>{workflow.status === "success" ? "Your research report is ready." : workflow.status === "failed" ? "The investigation stopped at the stage marked below. Completed results have been preserved." : "The workflow completed with some limitations. Review the stage details below."}</p></div><button className="download-button" onClick={downloadReport} disabled={!workflow.pdf_filename}><ArrowDownToLine size={16}/> Download report</button></div>
