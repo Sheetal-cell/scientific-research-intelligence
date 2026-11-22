@@ -21,7 +21,7 @@ from app.services.pdf_service import PAPER_DIR, get_safe_filename
 
 load_dotenv()
 
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
 _client = None
 
