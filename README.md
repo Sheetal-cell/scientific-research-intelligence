@@ -14,14 +14,13 @@ render.yaml    Render backend deployment blueprint
 
 - Research planning with Gemini structured output
 - Literature discovery through OpenAlex and arXiv
-- Deduplication and LLM-assisted relevance assessment
-- OpenAlex retry/backoff for rate limits and transient failures
+- LLM-assisted relevance assessment
 - PDF collection and text extraction
 - Chunk-based scientific evidence extraction
 - Cross-paper synthesis and report generation
-- Citation and report-quality evaluation
-- Downloadable PDF report
-- Responsive React dashboard with workflow status, selected papers, report view, and quality indicators
+- Deterministic citation checks and report-quality evaluation
+- Gemini primary + Gemini secondary + optional Groq emergency model fallback
+- Responsive React dashboard and downloadable PDF report
 
 ## Run locally
 
@@ -38,9 +37,9 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Add your Gemini API key to `backend/.env`. Do not commit this file.
+Add your Gemini key and (recommended) Groq key to `backend/.env`. Never commit this file.
 
-Start the API from the `backend` directory:
+Start the API from the backend directory:
 
 ```powershell
 uvicorn app.main:app --reload
@@ -69,10 +68,12 @@ Backend (`backend/.env`):
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | Yes, for AI endpoints | Gemini API key; configure as a secret in hosting |
+| `GEMINI_API_KEY` | Yes | Primary Google Gemini API key |
 | `GEMINI_MODEL` | No | Defaults to `gemini-3.5-flash-lite` |
-| `GEMINI_FALLBACK_MODEL` | No | Fallback model used on Gemini 503; defaults to `gemini-3.1-flash-lite` |
-| `OPENALEX_API_KEY` | No | Contact email for OpenAlex polite identification |
+| `GEMINI_FALLBACK_MODEL` | No | Secondary Gemini model; defaults to `gemini-3.1-flash-lite` |
+| `GROQ_API_KEY` | Recommended | Independent fallback when both Gemini models fail; free-tier limits apply |
+| `GROQ_MODEL` | No | Defaults to `openai/gpt-oss-20b` |
+| `OPENALEX_API_KEY` | No | OpenAlex API key for higher API limits |
 | `FRONTEND_ORIGINS` | No | Comma-separated allowed frontend origins |
 
 Frontend (`frontend/.env`):
@@ -81,23 +82,24 @@ Frontend (`frontend/.env`):
 | --- | --- |
 | `VITE_API_URL` | Backend base URL; defaults to `http://localhost:8000` |
 
-Never put the Gemini key in a `VITE_*` variable or frontend source.
+Never put API keys in frontend variables or frontend source code.
 
 ## Free-tier deployment outline
 
-1. Deploy the backend on Render using the included `render.yaml`. Set `GEMINI_API_KEY` as a secret environment variable in the Render dashboard. Free web services may sleep when idle and take time to wake.
-2. Deploy `frontend/` on Vercel with framework preset Vite. Set `VITE_API_URL` to the deployed Render API URL.
-3. Update `FRONTEND_ORIGINS` on Render with the exact Vercel production origin. The API also permits Vercel preview subdomains.
-4. Trigger a fresh deployment after environment variables are saved.
+1. Deploy the backend on Render using `render.yaml`.
+2. Set `GEMINI_API_KEY` and `GROQ_API_KEY` as secret environment variables in Render. Do not upgrade Groq to a paid tier unless you deliberately choose to.
+3. Deploy `frontend/` on Vercel with framework preset Vite and set `VITE_API_URL` to the Render API URL.
+4. Set `FRONTEND_ORIGINS` on Render to your Vercel production origin and redeploy.
 
-Free provider limits and model/API quotas can change. A successful deployment does not guarantee unlimited Gemini or OpenAlex usage.
+Provider free-tier limits and model availability can change. A successful deployment does not guarantee unlimited API usage.
 
 ## Reliability notes
 
-- The API health endpoint does not require a Gemini key, so hosting health checks can succeed before secrets are configured.
-- Gemini clients are initialized lazily when an AI task is requested. Missing-key errors are returned by the relevant API operation rather than preventing FastAPI startup.
-- OpenAlex requests use bounded retries and respect a numeric `Retry-After` header where supplied. If a provider remains unavailable, discovery may still return fewer results; check server logs.
-- PDF availability and extraction quality depend on publisher access and the source PDF. The pipeline should report partial results rather than treating every paper as fully extracted.
+- Gemini is attempted first, followed by the configured secondary Gemini model.
+- If both Gemini models fail, the application uses Groq when `GROQ_API_KEY` is configured. Groq output is parsed and validated by the same Pydantic schemas used by the agents.
+- Groq structured output is best-effort; schema validation remains mandatory in the application.
+- OpenAlex requests use bounded retries and respect a numeric `Retry-After` header where supplied.
+- PDF availability depends on publisher access and source licensing. Paywalled sources may reject downloads; the app must report those failures rather than imply the paper was analysed.
 
 ## Important
 
