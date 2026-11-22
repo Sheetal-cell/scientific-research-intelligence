@@ -195,8 +195,8 @@ def extract_chunk_evidence(
         for item in chunk
     ]
 
-    chunk_text = "\\n\\n".join(
-        f"--- PAGE {item['page_number']} ---\\n{item['text']}"
+    chunk_text = "\n\n".join(
+        f"--- PAGE {item['page_number']} ---\n{item['text']}"
         for item in chunk
     )
 
