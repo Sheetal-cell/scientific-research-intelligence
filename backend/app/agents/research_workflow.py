@@ -171,9 +171,7 @@ def run_research_workflow(question: str):
                 for item in pdf_processing.results
                 if item.extraction_status != "success"
             ]
-            _stage(stages, "PDF Collection Details", "warning",
-                   "Some papers do not provide accessible, text-readable PDFs.",
-                   {"details": reasons[:8]})
+            stages[-1].metrics["failed_papers"] = reasons[:8]
             return _stop(question, title, stages,
                          research_plan=plan, filtering=filtering,
                          pdf_processing=pdf_processing)
