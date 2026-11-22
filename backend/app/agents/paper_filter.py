@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 import time
+import random
 from app.schemas.paper import (
     Paper,
     PaperAssessment,
@@ -96,7 +97,7 @@ def is_retryable_error(error: Exception) -> bool:
     )
 
 def generate_assessment_with_retry(prompt: str):
-    max_attempts = 4
+    max_attempts = 5
 
     for attempt in range(max_attempts):
         try:
@@ -117,12 +118,13 @@ def generate_assessment_with_retry(prompt: str):
             ):
                 raise
 
-            wait_seconds = 2 ** (attempt + 1)
+            base_wait = min(40, 5 * (2 ** attempt))
+            wait_seconds = base_wait + random.uniform(0, min(5, base_wait * 0.2))
 
             print(
     f"[Paper Filtering] Gemini error: {error} | "
     f"Retry {attempt + 1}/{max_attempts - 1} | "
-    f"Waiting {wait_seconds}s"
+    f"Waiting {wait_seconds:.1f}s"
 )
 
             time.sleep(wait_seconds)
