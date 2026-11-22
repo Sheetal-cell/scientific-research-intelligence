@@ -76,6 +76,12 @@ Important rules:
 - If information is missing, explicitly mention it.
 - Preserve the exact paper_id provided in the input.
 - Return one assessment for every input paper.
+- The response must be a JSON object with exactly this top-level structure:
+  {"assessments": [{"paper_id": "...", "relevance_score": 0,
+  "category": "...", "rationale": "...", "strengths": [],
+  "limitations": [], "metadata_warnings": []}]}
+- Do not return the assessments array by itself; it must be inside
+  the "assessments" object property.
 """
 
 def is_retryable_error(error: Exception) -> bool:
@@ -173,7 +179,20 @@ def assess_task_papers(task, papers: list[Paper]) -> list[PaperAssessment]:
     if not response.text:
         raise ValueError("The filtering agent returned an empty response")
 
-    batch = PaperAssessmentBatch.model_validate_json(response.text)
+    # Some JSON-mode model responses return the assessments array directly,
+    # even though the expected Pydantic schema is an object containing it.
+    # Normalize that equivalent shape before validation.
+    try:
+        payload = json.loads(response.text)
+    except json.JSONDecodeError as error:
+        raise ValueError(
+            "The paper filtering agent returned invalid JSON."
+        ) from error
+
+    if isinstance(payload, list):
+        payload = {"assessments": payload}
+
+    batch = PaperAssessmentBatch.model_validate(payload)
 
     return batch.assessments
 
