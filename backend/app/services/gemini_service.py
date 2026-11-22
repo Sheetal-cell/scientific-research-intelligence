@@ -6,7 +6,7 @@ from types import SimpleNamespace
 # Groq free/on-demand limits are tight. Avoid sending oversized prompts and
 # pause Groq briefly after a rate-limit response so every next agent call does
 # not immediately hit the same limit.
-GROQ_MAX_PROMPT_CHARS = int(os.getenv("GROQ_MAX_PROMPT_CHARS", "12000"))
+GROQ_MAX_PROMPT_CHARS = int(os.getenv("GROQ_MAX_PROMPT_CHARS", "8000"))
 GROQ_COOLDOWN_SECONDS = int(os.getenv("GROQ_COOLDOWN_SECONDS", "60"))
 _groq_cooldown_until = 0.0
 
@@ -83,7 +83,7 @@ def _generate_with_groq(contents, config):
             error_text = str(schema_error).lower()
             status_code = getattr(schema_error, "status_code", None)
             is_rate_limit = (
-                status_code == 429
+                status_code in (413, 429)
                 or "rate_limit_exceeded" in error_text
                 or "tokens per minute" in error_text
             )
