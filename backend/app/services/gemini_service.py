@@ -78,14 +78,17 @@ def _generate_with_groq(contents, config):
 
 def generate_with_fallback(client, primary_model, contents, config):
     """Try Groq first, then the primary and secondary Gemini models."""
+    groq_error = None
     try:
         return _generate_with_groq(contents, config)
-    except Exception as groq_error:
+    except Exception as error:
+        groq_error = error
         print(
             "[Groq] Primary provider failed; switching to Gemini. "
             f"Reason: {groq_error}"
         )
 
+    primary_error = None
     try:
         print(f"[Gemini] Trying fallback provider model {primary_model}.")
         return client.models.generate_content(
@@ -93,7 +96,8 @@ def generate_with_fallback(client, primary_model, contents, config):
             contents=contents,
             config=config,
         )
-    except Exception as primary_error:
+    except Exception as error:
+        primary_error = error
         print(
             f"[Gemini] {primary_model} failed; trying secondary model. "
             f"Reason: {primary_error}"
