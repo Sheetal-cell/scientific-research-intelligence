@@ -6,6 +6,7 @@ import random
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from app.services.gemini_service import generate_with_fallback
 
 from app.schemas.report import (
     ResearchReportRequest,
@@ -98,8 +99,9 @@ def generate_with_retry(prompt: str):
 
     for attempt in range(max_attempts):
         try:
-            return get_client().models.generate_content(
-                model=MODEL,
+            return generate_with_fallback(
+                client=get_client(),
+                primary_model=MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
