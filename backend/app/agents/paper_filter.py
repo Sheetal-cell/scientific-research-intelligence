@@ -153,7 +153,7 @@ def _assess_paper_batch(task, papers: list[Paper]) -> list[PaperAssessment]:
             "title": paper.title,
             "authors": paper.authors,
             "publication_year": paper.publication_year,
-            "abstract": (paper.abstract or "Abstract unavailable")[:2500],
+            "abstract": (paper.abstract or "Abstract unavailable")[:1200],
             "doi": paper.doi,
             "source": paper.source
         })
@@ -168,7 +168,7 @@ def _assess_paper_batch(task, papers: list[Paper]) -> list[PaperAssessment]:
     {task.description}
 
     PAPERS TO ASSESS:
-    {json.dumps(paper_information, ensure_ascii=False, indent=2)}
+    {json.dumps(paper_information, ensure_ascii=False, separators=(",", ":"))}
 
     Assess every paper individually.
     Return exactly one assessment for each supplied paper_id.
@@ -198,8 +198,8 @@ def _assess_paper_batch(task, papers: list[Paper]) -> list[PaperAssessment]:
 
 
 def assess_task_papers(task, papers: list[Paper]) -> list[PaperAssessment]:
-    """Assess small paper batches to keep prompts within free-tier limits."""
-    batch_size = 3
+    """Assess two-paper batches with compact abstracts to stay within free-tier prompt limits."""
+    batch_size = 2
     assessments = []
 
     for start in range(0, len(papers), batch_size):
