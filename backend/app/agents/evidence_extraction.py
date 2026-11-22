@@ -1,4 +1,3 @@
-
 import os
 import json
 import time
@@ -29,6 +28,7 @@ MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
 _client = None
 
+
 def get_client():
     """Reuse one Gemini client instead of creating a new client per request."""
     global _client
@@ -43,6 +43,7 @@ def get_client():
         _client = genai.Client(api_key=api_key)
 
     return _client
+
 
 SYSTEM_INSTRUCTION = """
 You are the Scientific Research Evidence Extraction Agent.
@@ -79,14 +80,27 @@ Strict rules:
 - Do not assess information outside the supplied chunk.
 """
 
+
+def is_permanent_daily_quota_error(error: Exception) -> bool:
+    """Daily free-tier quota exhaustion will not recover by retrying now."""
+    error_text = str(error).upper()
+    permanent_quota_markers = (
+        "REQUESTS PER DAY",
+        "PER DAY PER PROJECT",
+        "GENERATEREQUESTSPERDAY",
+        "DAILY QUOTA",
+        "QUOTA RESET",
+    )
+    return any(marker in error_text for marker in permanent_quota_markers)
+
+
 def is_retryable_error(error: Exception) -> bool:
-    """
-    Identify temporary Gemini service or quota errors.
-    """
+    """Identify transient provider errors, excluding exhausted daily quotas."""
+    if is_permanent_daily_quota_error(error):
+        return False
 
     error_text = str(error).upper()
-
-    retryable_codes = [
+    retryable_codes = (
         "429",
         "500",
         "502",
@@ -95,13 +109,8 @@ def is_retryable_error(error: Exception) -> bool:
         "RESOURCE_EXHAUSTED",
         "UNAVAILABLE",
         "INTERNAL",
-    ]
-
-    return any(
-        code in error_text
-        for code in retryable_codes
     )
-
+    return any(code in error_text for code in retryable_codes)
 
 
 def generate_with_retry(
@@ -111,11 +120,10 @@ def generate_with_retry(
     total_chunks: int = 0,
 ):
     """
-    Retry temporary Gemini failures with exponential backoff.
-    Log the paper and chunk responsible for each request.
+    Retry transient provider failures with bounded exponential backoff.
+    Do not repeat requests when the daily free-tier quota is exhausted.
     """
-
-    max_attempts = 5
+    max_attempts = 3
 
     for attempt in range(max_attempts):
         try:
@@ -136,32 +144,29 @@ def generate_with_retry(
                 or attempt == max_attempts - 1
             ):
                 print(
-                    f"[Evidence Extraction] "
-                    f"FAILED | Paper: {paper_id} | "
-                    f"Chunk: {chunk_number}/{total_chunks} | "
-                    f"Error: {error}"
+                    f"[Evidence Extraction] FAILED | Paper: {paper_id} | "
+                    f"Chunk: {chunk_number}/{total_chunks} | Error: {error}"
                 )
                 raise
 
-            base_wait = min(40, 5 * (2 ** attempt))
-            wait_seconds = base_wait + random.uniform(0, min(5, base_wait * 0.2))
+            base_wait = min(30, 5 * (2 ** attempt))
+            wait_seconds = base_wait + random.uniform(
+                0, min(5, base_wait * 0.2)
+            )
 
             print(
-    f"[Evidence Extraction] "
-    f"Gemini error: {error} | "
-    f"Paper: {paper_id} | "
-    f"Chunk: {chunk_number}/{total_chunks} | "
-    f"Retry: {attempt + 1}/{max_attempts - 1} | "
-    f"Waiting: {wait_seconds:.1f}s"
-)
-
+                f"[Evidence Extraction] Temporary provider error: {error} | "
+                f"Paper: {paper_id} | Chunk: {chunk_number}/{total_chunks} | "
+                f"Retry: {attempt + 1}/{max_attempts - 1} | "
+                f"Waiting: {wait_seconds:.1f}s"
+            )
             time.sleep(wait_seconds)
 
-    raise RuntimeError("Gemini request failed after retries.")
+    raise RuntimeError("Evidence extraction failed after retries.")
+
+
 def read_extracted_document(paper_id: str) -> str:
-
     filename = get_safe_filename(paper_id)
-
     text_path = PAPER_DIR / f"{filename}.txt"
 
     # Resolve and verify that the path stays inside PAPER_DIR.
@@ -178,20 +183,20 @@ def read_extracted_document(paper_id: str) -> str:
 
     return resolved_path.read_text(encoding="utf-8")
 
+
 def extract_chunk_evidence(
     paper: Paper,
     chunk: list[dict],
     chunk_number: int,
     total_chunks: int,
 ) -> list[EvidenceItem]:
-
     page_numbers = [
         item["page_number"]
         for item in chunk
     ]
 
-    chunk_text = "\n\n".join(
-        f"--- PAGE {item['page_number']} ---\n{item['text']}"
+    chunk_text = "\\n\\n".join(
+        f"--- PAGE {item['page_number']} ---\\n{item['text']}"
         for item in chunk
     )
 
@@ -215,14 +220,14 @@ def extract_chunk_evidence(
     """
 
     response = generate_with_retry(
-    prompt=prompt,
-    paper_id=paper.paper_id,
-    chunk_number=chunk_number,
-    total_chunks=total_chunks,
-)
+        prompt=prompt,
+        paper_id=paper.paper_id,
+        chunk_number=chunk_number,
+        total_chunks=total_chunks,
+    )
 
     if not response.text:
-        raise ValueError("Gemini returned an empty evidence response.")
+        raise ValueError("The model returned an empty evidence response.")
 
     batch = ChunkEvidenceBatch.model_validate_json(response.text)
 
@@ -230,23 +235,19 @@ def extract_chunk_evidence(
     valid_evidence = []
 
     for item in batch.evidence:
-
         if item.page_number not in page_numbers:
             continue
-
         valid_evidence.append(item)
 
     return valid_evidence
 
-def analyze_paper(paper: Paper) -> PaperEvidenceReport:
 
+def analyze_paper(paper: Paper) -> PaperEvidenceReport:
     warnings = []
 
     try:
         full_text = read_extracted_document(paper.paper_id)
-
     except Exception as error:
-
         return PaperEvidenceReport(
             paper_id=paper.paper_id,
             title=paper.title,
@@ -259,7 +260,6 @@ def analyze_paper(paper: Paper) -> PaperEvidenceReport:
     chunks = create_document_chunks(full_text)
 
     if not chunks:
-
         return PaperEvidenceReport(
             paper_id=paper.paper_id,
             title=paper.title,
@@ -278,11 +278,11 @@ def analyze_paper(paper: Paper) -> PaperEvidenceReport:
                 time.sleep(3)
 
             evidence_items = extract_chunk_evidence(
-    paper=paper,
-    chunk=chunk,
-    chunk_number=chunk_index,
-    total_chunks=len(chunks),
-)
+                paper=paper,
+                chunk=chunk,
+                chunk_number=chunk_index,
+                total_chunks=len(chunks),
+            )
 
             all_evidence.extend(evidence_items)
             chunks_processed += 1
@@ -292,7 +292,6 @@ def analyze_paper(paper: Paper) -> PaperEvidenceReport:
                 f"Evidence extraction failed for "
                 f"{paper.paper_id}, chunk {chunk_index}: {error}"
             )
-
             warnings.append(
                 f"Chunk {chunk_index} failed: {str(error)}"
             )
@@ -302,7 +301,6 @@ def analyze_paper(paper: Paper) -> PaperEvidenceReport:
     seen = set()
 
     for item in all_evidence:
-
         key = (
             item.category,
             item.page_number,
@@ -333,40 +331,34 @@ def analyze_paper(paper: Paper) -> PaperEvidenceReport:
         extraction_status=status,
         total_chunks=len(chunks),
         chunks_processed=chunks_processed,
-
         research_objectives=get_findings("objective"),
         methodologies=get_findings("methodology"),
         architectures=get_findings("architecture"),
         datasets=get_findings("dataset"),
         metrics=get_findings("metric"),
-
         findings=[
             item for item in unique_evidence
             if item.category == "result"
         ],
-
         limitations=[
             item for item in unique_evidence
             if item.category == "limitation"
         ],
-
         future_work=[
             item for item in unique_evidence
             if item.category == "future_work"
         ],
-
         evidence=unique_evidence,
         warnings=warnings
     )
 
+
 def extract_research_evidence(
     request: EvidenceExtractionRequest
 ) -> EvidenceExtractionResponse:
-
     reports = []
 
     for paper in request.papers:
-
         report = analyze_paper(paper)
         reports.append(report)
 
@@ -374,12 +366,10 @@ def extract_research_evidence(
         1 for report in reports
         if report.extraction_status == "success"
     )
-
     partial = sum(
         1 for report in reports
         if report.extraction_status == "partial"
     )
-
     failed = sum(
         1 for report in reports
         if report.extraction_status == "failed"
