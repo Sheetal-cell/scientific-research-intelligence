@@ -130,6 +130,18 @@ export default function ResearchModules({ question, setQuestion, workflow, onWor
     if (clearKeys.length) {
       setOutputs((current) => Object.fromEntries(Object.entries(current).filter(([name]) => !clearKeys.includes(name))));
       setStatuses((current) => Object.fromEntries(Object.entries(current).filter(([name]) => !clearKeys.includes(name))));
+      const workflowKeyMap: Record<string, string> = {
+        discover: "discovery", filter: "filtering", pdf: "pdf_processing",
+        evidence: "evidence_extraction", synthesis: "synthesis",
+        report: "report", quality: "quality_evaluation",
+      };
+      const clearWorkflow: Record<string, any> = {};
+      for (const name of clearKeys) {
+        if (workflowKeyMap[name]) clearWorkflow[workflowKeyMap[name]] = null;
+      }
+      const invalidatedStages = clearKeys.map((name) => STAGE_NAMES[name]).filter(Boolean);
+      clearWorkflow.stages = (workflow?.stages || []).filter((stage: any) => !invalidatedStages.includes(stage.name));
+      onWorkflowUpdate(clearWorkflow);
     }
     setRunning(key);
     setStatuses((current) => ({ ...current, [key]: { status: "running", message: "Working… this may take a little while." } }));
