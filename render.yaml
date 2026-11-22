@@ -15,5 +15,5 @@ services:
         value: gemini-3.5-flash-lite
       - key: FRONTEND_ORIGINS
         value: http://localhost:5173
-      - key: OPENALEX_MAILTO
+      - key: OPENALEX_API_KEY
         sync: false
