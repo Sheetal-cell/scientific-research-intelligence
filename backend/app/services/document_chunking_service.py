@@ -10,7 +10,7 @@ def split_document_into_pages(full_text: str) -> list[tuple[int, str]]:
     Recover page numbers from the markers created
     by the Phase 4 PDF extraction service.
     """
-    pattern = r"--- PAGE (\\d+) ---"
+    pattern = r"--- PAGE (\d+) ---"
     matches = list(re.finditer(pattern, full_text))
 
     if not matches:
@@ -47,7 +47,7 @@ def split_large_page(
         return [(page_number, page_text)]
 
     chunks = []
-    paragraphs = page_text.split("\\n")
+    paragraphs = page_text.split("\n")
     current_chunk = ""
 
     for paragraph in paragraphs:
@@ -67,7 +67,7 @@ def split_large_page(
             paragraph = paragraph[MAX_CHUNK_CHARS:]
 
         current_chunk += (
-            "\\n" + paragraph if current_chunk else paragraph
+            "\n" + paragraph if current_chunk else paragraph
         )
 
     if current_chunk:
