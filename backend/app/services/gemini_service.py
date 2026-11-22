@@ -1,16 +1,15 @@
-"""Shared model routing: Gemini first, Groq as an independent emergency fallback."""
+"""Shared model routing: Groq first, with Gemini as the provider fallback."""
 import os
 from types import SimpleNamespace
 
 
 def _generate_with_groq(contents, config):
-    """Run the same JSON task on Groq and return a Gemini-like response object."""
+    """Run the JSON task on Groq and return a Gemini-like response object."""
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError(
-            "Both configured Gemini models are unavailable and GROQ_API_KEY "
-            "is not configured. Add a Groq API key to backend/.env for the "
-            "independent backup provider."
+            "GROQ_API_KEY is not configured. Add a Groq API key to backend/.env "
+            "to use Groq as the primary provider."
         )
 
     from groq import Groq
@@ -45,8 +44,7 @@ def _generate_with_groq(contents, config):
     }
 
     # Use best-effort JSON Schema where supplied. If the provider rejects a
-    # schema feature, retry once in JSON-object mode and validate with Pydantic
-    # in the calling agent.
+    # schema feature, retry once in JSON-object mode and validate with Pydantic.
     if schema:
         try:
             response = client.chat.completions.create(
@@ -71,51 +69,57 @@ def _generate_with_groq(contents, config):
     else:
         response = client.chat.completions.create(**request)
 
-    text = response.choices[0].message.content
-    if not text:
+    output = response.choices[0].message.content
+    if not output:
         raise RuntimeError("Groq returned an empty response.")
-    print(f"[Groq] Backup response generated successfully using {model}.")
-    return SimpleNamespace(text=text)
+    print(f"[Groq] Primary response generated successfully using {model}.")
+    return SimpleNamespace(text=output)
 
 
 def generate_with_fallback(client, primary_model, contents, config):
-    """Try primary Gemini, secondary Gemini, then Groq if configured."""
+    """Try Groq first, then the primary and secondary Gemini models."""
     try:
+        return _generate_with_groq(contents, config)
+    except Exception as groq_error:
+        print(
+            "[Groq] Primary provider failed; switching to Gemini. "
+            f"Reason: {groq_error}"
+        )
+
+    try:
+        print(f"[Gemini] Trying fallback provider model {primary_model}.")
         return client.models.generate_content(
             model=primary_model,
             contents=contents,
             config=config,
         )
     except Exception as primary_error:
-        message = str(primary_error).upper()
-        transient_markers = (
-            "429", "500", "502", "503", "504",
-            "RESOURCE_EXHAUSTED", "UNAVAILABLE", "INTERNAL",
+        print(
+            f"[Gemini] {primary_model} failed; trying secondary model. "
+            f"Reason: {primary_error}"
         )
-        if not any(marker in message for marker in transient_markers):
-            raise
 
     fallback_model = os.getenv(
         "GEMINI_FALLBACK_MODEL",
         "gemini-3.1-flash-lite",
     ).strip()
 
-    try:
-        if not fallback_model or fallback_model == primary_model:
-            raise RuntimeError("No distinct Gemini fallback model is configured.")
+    if not fallback_model or fallback_model == primary_model:
+        raise RuntimeError(
+            "Groq and the primary Gemini model failed, and no distinct "
+            "GEMINI_FALLBACK_MODEL is configured."
+        ) from primary_error
 
-        print(
-            f"[Gemini] {primary_model} is unavailable; "
-            f"trying {fallback_model}."
-        )
+    try:
         return client.models.generate_content(
             model=fallback_model,
             contents=contents,
             config=config,
         )
     except Exception as fallback_error:
-        print(
-            "[Gemini] Both Gemini models failed; "
-            f"trying independent Groq backup. Last Gemini error: {fallback_error}"
-        )
-        return _generate_with_groq(contents, config)
+        raise RuntimeError(
+            "All configured LLM providers failed. "
+            f"Groq error: {groq_error}; "
+            f"Gemini primary error: {primary_error}; "
+            f"Gemini secondary error: {fallback_error}"
+        ) from fallback_error
