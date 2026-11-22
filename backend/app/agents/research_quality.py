@@ -2,6 +2,7 @@
 import os
 import re
 import time
+import random
 import unicodedata
 
 from dotenv import load_dotenv
@@ -21,7 +22,7 @@ from app.services.pdf_service import PAPER_DIR, get_safe_filename
 
 load_dotenv()
 
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
 _client = None
 
@@ -291,7 +292,7 @@ def is_retryable_error(error: Exception) -> bool:
     )
 
 def evaluate_with_gemini(prompt: str):
-    for attempt in range(3):
+    for attempt in range(5):
         try:
             return get_client().models.generate_content(
                 model=MODEL,
@@ -304,10 +305,16 @@ def evaluate_with_gemini(prompt: str):
             )
 
         except Exception as error:
-            if not is_retryable_error(error) or attempt == 2:
+            if not is_retryable_error(error) or attempt == 4:
                 raise
 
-            time.sleep(2 ** (attempt + 1))
+            base_wait = min(40, 5 * (2 ** attempt))
+            wait_seconds = base_wait + random.uniform(0, min(5, base_wait * 0.2))
+            print(
+                f"[Research Quality] Gemini error: {error} | "
+                f"Retry {attempt + 1}/4 | Waiting {wait_seconds:.1f}s"
+            )
+            time.sleep(wait_seconds)
 
     raise RuntimeError("Quality evaluation failed.")
 

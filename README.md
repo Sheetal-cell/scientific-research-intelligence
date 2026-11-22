@@ -70,7 +70,7 @@ Backend (`backend/.env`):
 | Variable | Required | Description |
 | --- | --- | --- |
 | `GEMINI_API_KEY` | Yes, for AI endpoints | Gemini API key; configure as a secret in hosting |
-| `GEMINI_MODEL` | No | Defaults to `gemini-2.5-flash` |
+| `GEMINI_MODEL` | No | Defaults to `gemini-3.5-flash-lite` |
 | `OPENALEX_MAILTO` | No | Contact email for OpenAlex polite identification |
 | `FRONTEND_ORIGINS` | No | Comma-separated allowed frontend origins |
 

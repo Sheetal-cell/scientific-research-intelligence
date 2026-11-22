@@ -1,6 +1,7 @@
 
 import os
 import time
+import random
 
 from dotenv import load_dotenv
 from google import genai
@@ -17,7 +18,7 @@ from app.schemas.report import (
 
 load_dotenv()
 
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
 _client = None
 
@@ -93,7 +94,7 @@ def is_retryable_error(error: Exception) -> bool:
 
 
 def generate_with_retry(prompt: str):
-    max_attempts = 3
+    max_attempts = 5
 
     for attempt in range(max_attempts):
         try:
@@ -114,7 +115,8 @@ def generate_with_retry(prompt: str):
             ):
                 raise
 
-            wait_seconds = 2 ** (attempt + 1)
+            base_wait = min(40, 5 * (2 ** attempt))
+            wait_seconds = base_wait + random.uniform(0, min(5, base_wait * 0.2))
 
             print(
                 f"Report generation temporarily unavailable. "
