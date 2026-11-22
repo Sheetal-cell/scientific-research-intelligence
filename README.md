@@ -71,6 +71,7 @@ Backend (`backend/.env`):
 | --- | --- | --- |
 | `GEMINI_API_KEY` | Yes, for AI endpoints | Gemini API key; configure as a secret in hosting |
 | `GEMINI_MODEL` | No | Defaults to `gemini-3.5-flash-lite` |
+| `GEMINI_FALLBACK_MODEL` | No | Fallback model used on Gemini 503; defaults to `gemini-3.1-flash-lite` |
 | `OPENALEX_API_KEY` | No | Contact email for OpenAlex polite identification |
 | `FRONTEND_ORIGINS` | No | Comma-separated allowed frontend origins |
 
