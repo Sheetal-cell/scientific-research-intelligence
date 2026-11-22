@@ -15,6 +15,10 @@ services:
         value: gemini-3.5-flash-lite
       - key: GEMINI_FALLBACK_MODEL
         value: gemini-3.1-flash-lite
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b
       - key: FRONTEND_ORIGINS
         value: http://localhost:5173
       - key: OPENALEX_API_KEY
