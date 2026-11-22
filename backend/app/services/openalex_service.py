@@ -26,11 +26,7 @@ def reconstruct_abstract(inverted_index):
 
 
 def _request_headers():
-    headers = {"User-Agent": "ScientificResearchIntelligence/1.0 (mailto:research@example.com)"}
-    mailto = os.getenv("OPENALEX_MAILTO")
-    if mailto:
-        headers["User-Agent"] = f"ScientificResearchIntelligence/1.0 (mailto:{mailto})"
-    return headers
+    return {"User-Agent": "ScientificResearchIntelligence/1.0"}
 
 
 def search_openalex(keyword: str, limit: int = 5) -> list[Paper]:
@@ -40,6 +36,9 @@ def search_openalex(keyword: str, limit: int = 5) -> list[Paper]:
         "per_page": max(1, min(int(limit), 25)),
         "select": "id,doi,title,publication_year,authorships,abstract_inverted_index,primary_location",
     }
+    api_key = os.getenv("OPENALEX_API_KEY", "").strip()
+    if api_key:
+        params["api_key"] = api_key
 
     for attempt in range(MAX_ATTEMPTS):
         try:
