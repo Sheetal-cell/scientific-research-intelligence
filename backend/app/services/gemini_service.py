@@ -1,6 +1,25 @@
 """Shared model routing: Groq first, with Gemini as the provider fallback."""
 import os
+import time
 from types import SimpleNamespace
+
+# Groq free/on-demand limits are tight. Avoid sending oversized prompts and
+# pause Groq briefly after a rate-limit response so every next agent call does
+# not immediately hit the same limit.
+GROQ_MAX_PROMPT_CHARS = int(os.getenv("GROQ_MAX_PROMPT_CHARS", "12000"))
+GROQ_COOLDOWN_SECONDS = int(os.getenv("GROQ_COOLDOWN_SECONDS", "60"))
+_groq_cooldown_until = 0.0
+
+
+def _is_groq_rate_limit(error):
+    message = str(error).lower()
+    status_code = getattr(error, "status_code", None)
+    return (
+        status_code in (413, 429)
+        or "rate_limit_exceeded" in message
+        or "tokens per minute" in message
+        or "request too large" in message
+    )
 
 
 def _generate_with_groq(contents, config):
@@ -89,16 +108,37 @@ def _generate_with_groq(contents, config):
 
 
 def generate_with_fallback(client, primary_model, contents, config):
-    """Try Groq first, then the primary and secondary Gemini models."""
+    """Use Groq for small prompts; route large/rate-limited work to Gemini."""
+    global _groq_cooldown_until
     groq_error = None
-    try:
-        return _generate_with_groq(contents, config)
-    except Exception as error:
-        groq_error = error
-        print(
-            "[Groq] Primary provider failed; switching to Gemini. "
-            f"Reason: {groq_error}"
+    prompt_text = contents if isinstance(contents, str) else str(contents)
+    now = time.monotonic()
+
+    if len(prompt_text) > GROQ_MAX_PROMPT_CHARS:
+        groq_error = (
+            f"Prompt has {len(prompt_text)} characters; configured Groq "
+            f"safe limit is {GROQ_MAX_PROMPT_CHARS}. Routing to Gemini."
         )
+        print(f"[Groq] Skipping primary provider for oversized prompt. {groq_error}")
+    elif now < _groq_cooldown_until:
+        remaining = int(_groq_cooldown_until - now)
+        groq_error = f"Groq rate-limit cooldown active for approximately {remaining}s."
+        print(f"[Groq] {groq_error} Routing this request to Gemini.")
+    else:
+        try:
+            return _generate_with_groq(contents, config)
+        except Exception as error:
+            groq_error = error
+            if _is_groq_rate_limit(error):
+                _groq_cooldown_until = time.monotonic() + GROQ_COOLDOWN_SECONDS
+                print(
+                    f"[Groq] Rate limit detected. Pausing Groq for "
+                    f"{GROQ_COOLDOWN_SECONDS}s to protect the remaining workflow."
+                )
+            print(
+                "[Groq] Primary provider failed; switching to Gemini. "
+                f"Reason: {groq_error}"
+            )
 
     primary_error = None
     try:
