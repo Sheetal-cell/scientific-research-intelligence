@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel, Field
 from app.schemas.research import ResearchPlan
 from app.schemas.paper import PaperFilteringResponse
@@ -24,13 +23,11 @@ class ResearchWorkflowResponse(BaseModel):
     status: str
     research_title: str
     stages: list[WorkflowStage]
-
-    research_plan: ResearchPlan
-    filtering: PaperFilteringResponse
-    pdf_processing: PDFProcessingResponse
-    evidence_extraction: EvidenceExtractionResponse
-    synthesis: CrossPaperSynthesisResponse
-    report: ResearchReportResponse
-    quality_evaluation: ReportQualityResponse
-
-    pdf_filename: str
+    research_plan: ResearchPlan | None = None
+    filtering: PaperFilteringResponse | None = None
+    pdf_processing: PDFProcessingResponse | None = None
+    evidence_extraction: EvidenceExtractionResponse | None = None
+    synthesis: CrossPaperSynthesisResponse | None = None
+    report: ResearchReportResponse | None = None
+    quality_evaluation: ReportQualityResponse | None = None
+    pdf_filename: str | None = None
