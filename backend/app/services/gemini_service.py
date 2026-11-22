@@ -1,5 +1,6 @@
 """Shared model routing: Groq first, with Gemini as the provider fallback."""
 import os
+import re
 import time
 from types import SimpleNamespace
 
@@ -9,6 +10,51 @@ from types import SimpleNamespace
 GROQ_MAX_PROMPT_CHARS = int(os.getenv("GROQ_MAX_PROMPT_CHARS", "8000"))
 GROQ_COOLDOWN_SECONDS = int(os.getenv("GROQ_COOLDOWN_SECONDS", "60"))
 _groq_cooldown_until = 0.0
+_gemini_primary_cooldown_until = 0.0
+_gemini_fallback_cooldown_until = 0.0
+_gemini_primary_quota_error = None
+_gemini_fallback_quota_error = None
+
+
+def _retry_delay_seconds(message, default_seconds):
+    """Read provider retry hints such as '9m33s' or '45968s'."""
+    text = str(message).lower()
+    hint = re.search(
+        r"(?:try again in|retry in|retrydelay['\": ]+)\s*([^,\n}]+)",
+        text,
+    )
+    if not hint:
+        return default_seconds
+
+    duration = hint.group(1)
+    hours = re.search(r"(\d+(?:\.\d+)?)\s*h", duration)
+    minutes = re.search(r"(\d+(?:\.\d+)?)\s*m", duration)
+    seconds = re.search(r"(\d+(?:\.\d+)?)\s*s", duration)
+
+    total = (
+        (float(hours.group(1)) * 3600 if hours else 0)
+        + (float(minutes.group(1)) * 60 if minutes else 0)
+        + (float(seconds.group(1)) if seconds else 0)
+    )
+    return max(1, int(total)) if total else default_seconds
+
+def _is_daily_quota_exhausted(error):
+    message = str(error).lower()
+    return any(marker in message for marker in (
+        "tokens per day",
+        "requests per day",
+        "perdayperproject",
+        "perdaypermodel",
+        "daily quota",
+        "quota exceeded for metric",
+    ))
+
+
+def _gemini_is_daily_quota_error(error):
+    message = str(error).lower()
+    return _is_daily_quota_exhausted(message) or (
+        "resource_exhausted" in message and "retry" in message
+    )
 
 
 def _is_groq_rate_limit(error):
@@ -137,8 +183,10 @@ def _generate_with_groq(contents, config):
 
 
 def generate_with_fallback(client, primary_model, contents, config):
-    """Use Groq for small prompts; route large/rate-limited work to Gemini."""
+    """Use available providers, remembering quota exhaustion across agent calls."""
     global _groq_cooldown_until
+    global _gemini_primary_cooldown_until, _gemini_fallback_cooldown_until
+    global _gemini_primary_quota_error, _gemini_fallback_quota_error
     groq_error = None
     prompt_text = contents if isinstance(contents, str) else str(contents)
     now = time.monotonic()
@@ -159,30 +207,55 @@ def generate_with_fallback(client, primary_model, contents, config):
         except Exception as error:
             groq_error = error
             if _is_groq_rate_limit(error):
-                _groq_cooldown_until = time.monotonic() + GROQ_COOLDOWN_SECONDS
+                retry_seconds = _retry_delay_seconds(
+                    error,
+                    GROQ_COOLDOWN_SECONDS,
+                )
+                _groq_cooldown_until = time.monotonic() + retry_seconds
                 print(
                     f"[Groq] Rate limit detected. Pausing Groq for "
-                    f"{GROQ_COOLDOWN_SECONDS}s to protect the remaining workflow."
+                    f"{retry_seconds}s based on the provider retry hint."
                 )
             print(
                 "[Groq] Primary provider failed; switching to Gemini. "
                 f"Reason: {groq_error}"
             )
 
-    primary_error = None
-    try:
-        print(f"[Gemini] Trying fallback provider model {primary_model}.")
-        return client.models.generate_content(
-            model=primary_model,
-            contents=contents,
-            config=config,
+    now = time.monotonic()
+    if now < _gemini_primary_cooldown_until:
+        remaining = int(_gemini_primary_cooldown_until - now)
+        primary_error = RuntimeError(
+            f"Gemini primary model quota cooldown active for approximately {remaining}s. "
+            f"Previous error: {_gemini_primary_quota_error}"
         )
-    except Exception as error:
-        primary_error = error
-        print(
-            f"[Gemini] {primary_model} failed; trying secondary model. "
-            f"Reason: {primary_error}"
-        )
+        print(f"[Gemini] Skipping primary model; quota cooldown active for {remaining}s.")
+    else:
+        primary_error = None
+
+    if primary_error is None:
+        try:
+            print(f"[Gemini] Trying fallback provider model {primary_model}.")
+            response = client.models.generate_content(
+                model=primary_model,
+                contents=contents,
+                config=config,
+            )
+            return response
+        except Exception as error:
+            primary_error = error
+            if _gemini_is_daily_quota_error(error):
+                retry_seconds = _retry_delay_seconds(error, 3600)
+                _gemini_primary_cooldown_until = time.monotonic() + retry_seconds
+                _gemini_primary_quota_error = str(error)
+                print(
+                    f"[Gemini] Daily quota exhausted for {primary_model}. "
+                    f"Skipping it for approximately {retry_seconds}s."
+                )
+            else:
+                print(
+                    f"[Gemini] {primary_model} failed; trying secondary model. "
+                    f"Reason: {primary_error}"
+                )
 
     fallback_model = os.getenv(
         "GEMINI_FALLBACK_MODEL",
@@ -195,6 +268,19 @@ def generate_with_fallback(client, primary_model, contents, config):
             "GEMINI_FALLBACK_MODEL is configured."
         ) from primary_error
 
+    now = time.monotonic()
+    if now < _gemini_fallback_cooldown_until:
+        remaining = int(_gemini_fallback_cooldown_until - now)
+        fallback_error = RuntimeError(
+            f"Gemini secondary model quota cooldown active for approximately {remaining}s. "
+            f"Previous error: {_gemini_fallback_quota_error}"
+        )
+        raise RuntimeError(
+            "All configured LLM providers are currently rate-limited. "
+            f"Groq: {groq_error}; Gemini primary: {primary_error}; "
+            f"Gemini secondary: {fallback_error}"
+        ) from fallback_error
+
     try:
         return client.models.generate_content(
             model=fallback_model,
@@ -202,6 +288,15 @@ def generate_with_fallback(client, primary_model, contents, config):
             config=config,
         )
     except Exception as fallback_error:
+        if _gemini_is_daily_quota_error(fallback_error):
+            retry_seconds = _retry_delay_seconds(fallback_error, 3600)
+            _gemini_fallback_cooldown_until = time.monotonic() + retry_seconds
+            _gemini_fallback_quota_error = str(fallback_error)
+            print(
+                f"[Gemini] Daily quota exhausted for {fallback_model}. "
+                f"Skipping it for approximately {retry_seconds}s."
+            )
+
         raise RuntimeError(
             "All configured LLM providers failed. "
             f"Groq error: {groq_error}; "

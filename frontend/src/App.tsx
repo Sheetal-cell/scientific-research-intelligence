@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
+import ResearchModules from "./ResearchModules";
 import {
   Activity, ArrowDownToLine, ArrowRight, BookOpen, BrainCircuit, Check,
   ChevronDown, CircleHelp, Command, FileText, FlaskConical,
@@ -58,8 +59,8 @@ function App() {
 
   const visiblePapers = papers.filter((paper) => `${paper.title || ""} ${paper.authors?.join(" ") || ""}`.toLowerCase().includes(query.toLowerCase()));
 
-  async function runResearch(event: React.FormEvent) {
-    event.preventDefault();
+  async function runResearch(event?: React.FormEvent) {
+    event?.preventDefault();
     if (question.trim().length < 15) {
       setError("Please enter a research question with at least 15 characters.");
       return;
@@ -115,10 +116,15 @@ function App() {
             <Metric label="Citation integrity" value={workflow?.quality_evaluation?.citation_integrity_score != null ? `${workflow.quality_evaluation.citation_integrity_score}%` : "—"} note="Verified citation score" icon={ShieldCheck}/>
           </section>
 
-          <section className="work-grid">
-            <div className="panel research-panel"><div className="panel-heading"><div><div className="section-kicker">START A NEW INVESTIGATION</div><h2>Research brief</h2></div><span className="panel-icon"><Sparkles size={18}/></span></div><p className="panel-description">Describe the scientific problem you want to explore. The multi-agent workflow will plan the investigation and build an evidence-backed report.</p><form onSubmit={runResearch}><label htmlFor="research-question">YOUR RESEARCH QUESTION</label><textarea id="research-question" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="e.g. How do Vision Transformers compare with convolutional neural networks for medical image classification, and what are their current limitations?" maxLength={500} minLength={15}/><div className="input-meta"><span>Be specific about the domain, method, or outcome.</span><span>{question.length}/500</span></div>{error && <div className="error-message"><AlertCircle size={16}/>{error}</div>}<button className="primary-button" type="submit" disabled={loading || apiHealthy === false}>{loading ? <><LoaderCircle className="spin" size={17}/> Running research pipeline</> : <>Launch research workflow <ArrowRight size={16}/></>}</button><div className="privacy-note"><ShieldCheck size={14}/> Your API key stays on the backend. Never add secrets to the browser.</div></form></div>
-            <div className="panel pipeline-panel"><div className="panel-heading"><div><div className="section-kicker">AUTOMATED WORKFLOW</div><h2>Research pipeline</h2></div><span className="pipeline-count">{workflow ? `${completedStages}/${workflow.stages.length}` : "09"} <small>STAGES</small></span></div><div className="pipeline-list">{["Research planning","Paper discovery","Relevance filtering","PDF collection & extraction","Scientific evidence extraction","Cross-paper synthesis","Report generation","Citation & quality review","PDF report export"].map((label, i) => { const stage = stageByName.get(stageLabels[i]); return <div className={`pipeline-step ${stage?.status === "success" ? "step-done" : stage?.status === "failed" ? "step-failed" : ""}`} key={label}><div className="step-marker">{stage?.status === "success" ? <Check size={13}/> : <span>{String(i + 1).padStart(2, "0")}</span>}</div><div className="step-copy"><b>{label}</b>{stage && <small>{stage.message}</small>}</div>{stage && <span className={`step-state ${stage.status}`}>{stage.status === "success" ? "Done" : stage.status === "warning" ? "Warning" : stage.status}</span>}</div>; })}</div><div className="pipeline-foot"><span><i className="legend-dot done"/> Completed</span><span><i className="legend-dot pending"/> Awaiting run</span></div></div>
-          </section>
+          <ResearchModules
+            question={question}
+            setQuestion={setQuestion}
+            workflow={workflow}
+            onWorkflowUpdate={(updates) => setWorkflow((current) => ({ ...(current || {}), ...updates } as Workflow))}
+            onRunAll={() => runResearch()}
+            runAllLoading={loading}
+            onReset={() => setWorkflow(null)}
+          />
 
           {workflow && <section className="results-section"><div className="results-header"><div><div className="section-kicker">LATEST INVESTIGATION</div><h2>{workflow.research_title || "Research results"}</h2><p>{workflow.status === "success" ? "Your research report is ready." : workflow.status === "failed" ? "The investigation stopped at the stage marked below. Completed results have been preserved." : "The workflow completed with some limitations. Review the stage details below."}</p></div><button className="download-button" onClick={downloadReport} disabled={!workflow.pdf_filename}><ArrowDownToLine size={16}/> Download report</button></div>
             <div className="result-tabs"><span className="tab-active"><FileText size={15}/> Report</span><span><Library size={15}/> Papers ({papers.length})</span><span><Activity size={15}/> Quality review</span></div>
