@@ -2,6 +2,7 @@
 import os
 import re
 import time
+import random
 import unicodedata
 
 from dotenv import load_dotenv
@@ -291,7 +292,7 @@ def is_retryable_error(error: Exception) -> bool:
     )
 
 def evaluate_with_gemini(prompt: str):
-    for attempt in range(3):
+    for attempt in range(5):
         try:
             return get_client().models.generate_content(
                 model=MODEL,
@@ -304,7 +305,7 @@ def evaluate_with_gemini(prompt: str):
             )
 
         except Exception as error:
-            if not is_retryable_error(error) or attempt == 2:
+            if not is_retryable_error(error) or attempt == 4:
                 raise
 
             time.sleep(2 ** (attempt + 1))
