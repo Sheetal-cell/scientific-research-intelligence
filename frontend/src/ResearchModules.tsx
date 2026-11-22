@@ -117,6 +117,20 @@ export default function ResearchModules({ question, setQuestion, workflow, onWor
   async function runModule(key: string) {
     if (running) return;
     setError("");
+    const invalidated: Record<string, string[]> = {
+      plan: ["discover", "filter", "pdf", "extractedPapers", "evidence", "usableEvidence", "synthesis", "report", "quality"],
+      discover: ["filter", "pdf", "extractedPapers", "evidence", "usableEvidence", "synthesis", "report", "quality"],
+      filter: ["pdf", "extractedPapers", "evidence", "usableEvidence", "synthesis", "report", "quality"],
+      pdf: ["evidence", "usableEvidence", "synthesis", "report", "quality"],
+      evidence: ["usableEvidence", "synthesis", "report", "quality"],
+      synthesis: ["report", "quality"],
+      report: ["quality"],
+    };
+    const clearKeys = invalidated[key] || [];
+    if (clearKeys.length) {
+      setOutputs((current) => Object.fromEntries(Object.entries(current).filter(([name]) => !clearKeys.includes(name))));
+      setStatuses((current) => Object.fromEntries(Object.entries(current).filter(([name]) => !clearKeys.includes(name))));
+    }
     setRunning(key);
     setStatuses((current) => ({ ...current, [key]: { status: "running", message: "Working… this may take a little while." } }));
     try {
