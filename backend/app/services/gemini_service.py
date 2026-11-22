@@ -19,20 +19,24 @@ _gemini_fallback_quota_error = None
 def _retry_delay_seconds(message, default_seconds):
     """Read provider retry hints such as '9m33s' or '45968s'."""
     text = str(message).lower()
-    seconds_match = re.search(r"(\\d+(?:\\.\\d+)?)\\s*s", text)
-    if seconds_match:
-        return max(1, int(float(seconds_match.group(1))))
-
-    hours = re.search(r"(\\d+)\\s*h", text)
-    minutes = re.search(r"(\\d+)\\s*m", text)
-    seconds = re.search(r"(\\d+)\\s*s", text)
-    total = (
-        (int(hours.group(1)) * 3600 if hours else 0)
-        + (int(minutes.group(1)) * 60 if minutes else 0)
-        + (int(seconds.group(1)) if seconds else 0)
+    hint = re.search(
+        r"(?:try again in|retry in|retrydelay['\": ]+)\s*([^,\n}]+)",
+        text,
     )
-    return total if total else default_seconds
+    if not hint:
+        return default_seconds
 
+    duration = hint.group(1)
+    hours = re.search(r"(\d+(?:\.\d+)?)\s*h", duration)
+    minutes = re.search(r"(\d+(?:\.\d+)?)\s*m", duration)
+    seconds = re.search(r"(\d+(?:\.\d+)?)\s*s", duration)
+
+    total = (
+        (float(hours.group(1)) * 3600 if hours else 0)
+        + (float(minutes.group(1)) * 60 if minutes else 0)
+        + (float(seconds.group(1)) if seconds else 0)
+    )
+    return max(1, int(total)) if total else default_seconds
 
 def _is_daily_quota_exhausted(error):
     message = str(error).lower()
