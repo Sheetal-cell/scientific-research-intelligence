@@ -140,7 +140,7 @@ def generate_assessment_with_retry(prompt: str):
     raise RuntimeError(
         "Paper assessment failed after retries."
     )
-def assess_task_papers(task, papers: list[Paper]) -> list[PaperAssessment]:
+def _assess_paper_batch(task, papers: list[Paper]) -> list[PaperAssessment]:
 
     if not papers:
         return []
@@ -153,7 +153,7 @@ def assess_task_papers(task, papers: list[Paper]) -> list[PaperAssessment]:
             "title": paper.title,
             "authors": paper.authors,
             "publication_year": paper.publication_year,
-            "abstract": (paper.abstract or "Abstract unavailable")[:4000],
+            "abstract": (paper.abstract or "Abstract unavailable")[:2500],
             "doi": paper.doi,
             "source": paper.source
         })
@@ -195,6 +195,25 @@ def assess_task_papers(task, papers: list[Paper]) -> list[PaperAssessment]:
     batch = PaperAssessmentBatch.model_validate(payload)
 
     return batch.assessments
+
+
+def assess_task_papers(task, papers: list[Paper]) -> list[PaperAssessment]:
+    """Assess small paper batches to keep prompts within free-tier limits."""
+    batch_size = 3
+    assessments = []
+
+    for start in range(0, len(papers), batch_size):
+        paper_batch = papers[start:start + batch_size]
+        batch_number = (start // batch_size) + 1
+        total_batches = (len(papers) + batch_size - 1) // batch_size
+        print(
+            f"[Paper Filtering] Assessing batch {batch_number}/"
+            f"{total_batches} ({len(paper_batch)} papers)."
+        )
+        assessments.extend(_assess_paper_batch(task, paper_batch))
+
+    return assessments
+
 
 def filter_research_papers(
     request: PaperFilteringRequest
